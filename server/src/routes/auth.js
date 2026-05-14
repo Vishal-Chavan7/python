@@ -7,30 +7,32 @@ import { signToken } from '../utils/jwt.js';
 const router = Router();
 
 router.post('/signup',
-  body('name').notEmpty(),
-  body('email').isEmail(),
-  body('password').isLength({ min: 6 }),
+  body('name').trim().isLength({ min: 3, max: 50 }),
+  body('email').trim().isEmail().normalizeEmail(),
+  body('password').isLength({ min: 8 }),
   body('role').isIn(['tenant', 'landlord']),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
     const { name, email, password, role } = req.body;
-    const existing = await User.findOne({ email });
+    const normalizedEmail = email.trim().toLowerCase();
+    const existing = await User.findOne({ email: normalizedEmail });
     if (existing) return res.status(400).json({ message: 'Email already in use' });
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = await User.create({ name, email, passwordHash, role });
+    const user = await User.create({ name, email: normalizedEmail, passwordHash, role });
     return res.status(201).json({ user: { id: user._id, name: user.name, email: user.email, role: user.role } });
   }
 );
 
 router.post('/login',
-  body('email').isEmail(),
+  body('email').trim().isEmail().normalizeEmail(),
   body('password').notEmpty(),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
     const { email, password } = req.body;
-    const user = await User.findOne({ email });
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail });
     if (!user) return res.status(400).json({ message: 'Invalid credentials' });
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(400).json({ message: 'Invalid credentials' });
